@@ -17,7 +17,6 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
      *
      * @access public
      * @return void
-     * @throws Typecho_Plugin_Exception
      */
     public static function activate()
     {
@@ -39,7 +38,6 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
      * @static
      * @access public
      * @return void
-     * @throws Typecho_Plugin_Exception
      */
     public static function deactivate()
     {
@@ -138,6 +136,7 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
      * @access public
      * @param array $file 上传的文件
      * @return mixed
+     * @throws Typecho_Exception
      */
     public static function uploadHandle($file)
     {
@@ -151,19 +150,22 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
         $filePath = '/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
         $fileName = time() . '.' . $ext;
         //cos上传文件的路径+名称
-        $newPath=$filePath.$fileName;
+        $newPath = $filePath . $fileName;
         //获取插件参数
         $options = Typecho_Widget::widget('Widget_Options')->plugin('cosUploadV5');
-        
+
         //如果没有临时文件名检查是否有二进制流，如果都没有则返回失败
-        if(isset($file['tmp_name'])){
-          $srcPath = $file['tmp_name'];
-          $handle = fopen($srcPath, "r");
-          $contents = fread($handle, $file['size']);//获取二进制数据流
-          fclose($handle);}
-        elseif(isset($file['bytes'])){$contents = $file['bytes'];} //无临时文件，有二进制流直接上传二进制流
-        else{return false;}
-        
+        if (isset($file['tmp_name'])) {
+            $srcPath = $file['tmp_name'];
+            $handle = fopen($srcPath, "r");
+            $contents = fread($handle, $file['size']);//获取二进制数据流
+            fclose($handle);
+        } else if (isset($file['bytes'])) {
+            $contents = $file['bytes']; //无临时文件，有二进制流直接上传二进制流
+        } else {
+            return false;
+        }
+
         //初始化cos
         $cos_object = self::init($options);
         $cos_object->upload($options->bucket, $newPath, $contents);
@@ -173,7 +175,7 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
             'path' => $newPath,
             'size' => $file['size'],
             'type' => $ext,
-            'mime' => @Typecho_Common::mimeContentType(rtrim($options->domain, '/') . '/' .  $newPath),
+            'mime' => isset($file['mime']) ? $file['mime'] : Typecho_Common::mimeContentType($file['tmp_name'])
         );
     }
 
@@ -193,6 +195,7 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
      * @access public
      * @param array $content 当前文件信息
      * @return mixed
+     * @throws Typecho_Exception
      */
     public static function deleteHandle($content)
     {
@@ -200,8 +203,8 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
         $cos_object = self::init($options);
 
         $err = $cos_object->deleteObject(array(
-            'Bucket' => $options->bucket,
-            'Key' => $content['attachment']->path)
+                'Bucket' => $options->bucket,
+                'Key' => $content['attachment']->path)
         );
         return !$err;
     }
@@ -212,6 +215,7 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
      * @access public
      * @param array $content
      * @return string
+     * @throws Typecho_Exception
      */
     public static function attachmentDataHandle($content)
     {
@@ -227,6 +231,7 @@ class cosUploadV5_Plugin implements Typecho_Plugin_Interface
      * @access public
      * @param array $content 文件相关信息
      * @return string
+     * @throws Typecho_Exception
      */
     public static function attachmentHandle(array $content)
     {
